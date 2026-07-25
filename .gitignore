@@ -1,0 +1,7 @@
+# wxtrack 部署包忽略项
+.secrets/
+.venv/
+__pycache__/
+*.pyc
+logs/*.log
+data/wxtrack.db

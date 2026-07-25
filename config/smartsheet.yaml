@@ -1,0 +1,14 @@
+# 腾讯智能表格配置
+# 1. 预报与实测偏差: https://docs.qq.com/smartsheet/DRm5KZExDRUVJdEdO
+# 2. 综合研判预报: https://docs.qq.com/smartsheet/DRmZDcGtaT1dJSWtn
+sheets:
+  T1:
+    file_id: FnJdLCEEItGN
+    file_url: https://docs.qq.com/smartsheet/DRm5KZExDRUVJdEdO
+    sheet_id: t00i2h
+    title: 预报与实测
+  predict:
+    file_id: FfCpkZOWIIkg
+    file_url: https://docs.qq.com/smartsheet/DRmZDcGtaT1dJSWtn
+    sheet_id: t00i2h
+    title: 综合研判预报

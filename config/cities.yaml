@@ -1,0 +1,385 @@
+cities:
+- icao: NZWN
+  name: 惠灵顿
+  tz: Pacific/Auckland
+  order: 1
+  lat: -41.331
+  lon: 174.806
+  elev: 12
+  site: Wellington Intl
+- icao: RKSI
+  name: 首尔
+  tz: Asia/Seoul
+  order: 2
+  lat: 37.469
+  lon: 126.451
+  elev: 7
+  site: Seoul/Incheon Intl
+- icao: RJTT
+  name: 东京
+  tz: Asia/Tokyo
+  order: 3
+  lat: 35.553
+  lon: 139.781
+  elev: 5
+  site: Tokyo/Haneda Intl
+- icao: RKPK
+  name: 釜山
+  tz: Asia/Seoul
+  order: 4
+  lat: 35.179
+  lon: 128.938
+  elev: 3
+  site: Busan/Gimhae Intl
+- icao: ZBAA
+  name: 北京
+  tz: Asia/Shanghai
+  order: 5
+  lat: 40.082
+  lon: 116.603
+  elev: 31
+  site: Beijing Intl
+- icao: ZUUU
+  name: 成都
+  tz: Asia/Shanghai
+  order: 6
+  lat: 30.576
+  lon: 103.95
+  elev: 494
+  site: Chengdu/Shuangliu Intl
+- icao: ZUCK
+  name: 重庆
+  tz: Asia/Shanghai
+  order: 7
+  lat: 29.718
+  lon: 106.639
+  elev: 416
+  site: Chongqing/Jiangbei Intl
+- icao: ZGGG
+  name: 广州
+  tz: Asia/Shanghai
+  order: 8
+  lat: 23.392
+  lon: 113.307
+  elev: 11
+  site: Guangzhou/Baiyun Intl
+- icao: WMKK
+  name: 吉隆坡
+  tz: Asia/Kuala_Lumpur
+  order: 9
+  lat: 2.747
+  lon: 101.714
+  elev: 21
+  site: Kuala Lumpur Intl
+- icao: RPLL
+  name: 马尼拉
+  tz: Asia/Manila
+  order: 10
+  lat: 14.507
+  lon: 121.004
+  elev: 15
+  site: Manila/Aquino Intl
+- icao: ZSQD
+  name: 青岛
+  tz: Asia/Shanghai
+  order: 11
+  lat: 36.362
+  lon: 120.087
+  elev: 2
+  site: Qingdao/Jiaodong Arpt
+- icao: ZSPD
+  name: 上海
+  tz: Asia/Shanghai
+  order: 12
+  lat: 31.146
+  lon: 121.8
+  elev: 4
+  site: Shanghai/Pudong Intl
+- icao: ZGSZ
+  name: 深圳
+  tz: Asia/Shanghai
+  order: 13
+  lat: 22.639
+  lon: 113.803
+  elev: 18
+  site: Shenzhen/Boan Intl
+- icao: RCSS
+  name: 台北
+  tz: Asia/Taipei
+  order: 14
+  lat: 25.069
+  lon: 121.552
+  elev: 8
+  site: Taipei/Songshan Arpt
+- icao: ZHHH
+  name: 武汉
+  tz: Asia/Shanghai
+  order: 15
+  lat: 30.783
+  lon: 114.205
+  elev: 33
+  site: Wuhan/Tianhe Intl
+- icao: WSSS
+  name: 新加坡
+  tz: Asia/Singapore
+  order: 16
+  lat: 1.368
+  lon: 103.982
+  elev: 17
+  site: Singapore/Changi Intl
+- icao: VILK
+  name: 勒克瑙
+  tz: Asia/Kolkata
+  order: 17
+  lat: 26.761
+  lon: 80.889
+  elev: 121
+  site: Lucknow/Singh Arpt
+- icao: OPKC
+  name: 卡拉奇
+  tz: Asia/Karachi
+  order: 18
+  lat: 24.902
+  lon: 67.139
+  elev: 20
+  site: Karachi/Jinnah Intl
+- icao: LTAC
+  name: 安卡拉
+  tz: Europe/Istanbul
+  order: 19
+  lat: 40.128
+  lon: 32.995
+  elev: 952
+  site: Ankara/Esenboğa Intl
+- icao: OEJN
+  name: 吉达
+  tz: Asia/Riyadh
+  order: 20
+  lat: 21.685
+  lon: 39.166
+  elev: 8
+  site: Jeddah/King Abdulaziz Intl
+- icao: EFHK
+  name: 赫尔辛基
+  tz: Europe/Helsinki
+  order: 21
+  lat: 60.327
+  lon: 24.957
+  elev: 56
+  site: Helsinki/Vantaa Arpt
+- icao: LTFM
+  name: 伊斯坦布尔
+  tz: Europe/Istanbul
+  order: 22
+  lat: 41.262
+  lon: 28.74
+  elev: 99
+  site: Istanbul Arpt
+- icao: UUWW
+  name: 莫斯科
+  tz: Europe/Moscow
+  order: 23
+  lat: 55.592
+  lon: 37.261
+  elev: 195
+  site: Moscow/Vnukovo Arpt
+- icao: LLBG
+  name: 特拉维夫
+  tz: Asia/Jerusalem
+  order: 24
+  lat: 32.011
+  lon: 34.887
+  elev: 35
+  site: Tel Aviv/Ben Gurion Arpt
+- icao: EHAM
+  name: 阿姆斯特丹
+  tz: Europe/Amsterdam
+  order: 25
+  lat: 52.315
+  lon: 4.79
+  elev: -2
+  site: Amsterdam/Schiphol Arpt
+- icao: FACT
+  name: 开普敦
+  tz: Africa/Johannesburg
+  order: 26
+  lat: -33.965
+  lon: 18.602
+  elev: 48
+  site: Capetown Intl
+- icao: EPWA
+  name: 华沙
+  tz: Europe/Warsaw
+  order: 27
+  lat: 52.163
+  lon: 20.961
+  elev: 107
+  site: Warsaw/Chopin Arpt
+- icao: LEMD
+  name: 马德里
+  tz: Europe/Madrid
+  order: 28
+  lat: 40.466
+  lon: -3.555
+  elev: 589
+  site: Madrid/Barajas Arpt
+- icao: LIMC
+  name: 米兰
+  tz: Europe/Rome
+  order: 29
+  lat: 45.631
+  lon: 8.728
+  elev: 221
+  site: Milan/Malpensa Arpt
+- icao: EDDM
+  name: 慕尼黑
+  tz: Europe/Berlin
+  order: 30
+  lat: 48.348
+  lon: 11.813
+  elev: 445
+  site: Munich Intl
+- icao: LFPB
+  name: 巴黎
+  tz: Europe/Paris
+  order: 31
+  lat: 48.967
+  lon: 2.428
+  elev: 50
+  site: Paris/Le Bourge Arpt
+- icao: EGLC
+  name: 伦敦
+  tz: Europe/London
+  order: 32
+  lat: 51.505
+  lon: 0.055
+  elev: 10
+  site: London City Arpt
+- icao: SAEZ
+  name: 布宜诺斯艾利斯
+  tz: America/Argentina/Buenos_Aires
+  order: 33
+  lat: -34.822
+  lon: -58.536
+  elev: 16
+  site: Buenos Aires/Pistarini Arpt
+- icao: SBGR
+  name: 圣保罗
+  tz: America/Sao_Paulo
+  order: 34
+  lat: -23.432
+  lon: -46.469
+  elev: 745
+  site: Sao Paulo Intl
+- icao: CYYZ
+  name: 多伦多
+  tz: America/Toronto
+  order: 35
+  lat: 43.679
+  lon: -79.629
+  elev: 171
+  site: Toronto/Pearson Intl
+- icao: KMIA
+  name: 迈阿密
+  tz: America/New_York
+  order: 36
+  lat: 25.7881
+  lon: -80.3169
+  elev: 1
+  site: Miami Intl
+- icao: KLGA
+  name: 纽约
+  tz: America/New_York
+  order: 37
+  lat: 40.7794
+  lon: -73.8803
+  elev: 9
+  site: New York/La Guardia Arpt
+- icao: KATL
+  name: 亚特兰大
+  tz: America/New_York
+  order: 38
+  lat: 33.6297
+  lon: -84.4422
+  elev: 309
+  site: Atlanta/Hartsfield-Jackson Intl
+- icao: MPMG
+  name: 巴拿马城
+  tz: America/Panama
+  order: 39
+  lat: 8.967
+  lon: -79.555
+  elev: 6
+  site: Panama/Gelabert Intl
+- icao: KORD
+  name: 芝加哥
+  tz: America/Chicago
+  order: 40
+  lat: 41.9602
+  lon: -87.9316
+  elev: 202
+  site: Chicago/O'Hare Intl
+- icao: KDAL
+  name: 达拉斯
+  tz: America/Chicago
+  order: 41
+  lat: 32.8384
+  lon: -96.8358
+  elev: 148
+  site: Dallas/Love Fld
+- icao: KHOU
+  name: 休斯顿
+  tz: America/Chicago
+  order: 42
+  lat: 29.6458
+  lon: -95.2821
+  elev: 13
+  site: Houston/Hobby Arpt
+- icao: KAUS
+  name: 奥斯汀
+  tz: America/Chicago
+  order: 43
+  lat: 30.1831
+  lon: -97.6806
+  elev: 148
+  site: Austin/Bergstrom Intl
+- icao: KBKF
+  name: 丹佛
+  tz: America/Denver
+  order: 44
+  lat: 39.713
+  lon: -104.758
+  elev: 1703
+  site: Buckley SFB
+- icao: MMMX
+  name: 墨西哥城
+  tz: America/Mexico_City
+  order: 45
+  lat: 19.436
+  lon: -99.072
+  elev: 2224
+  site: Mexico City Intl
+- icao: KLAX
+  name: 洛杉矶
+  tz: America/Los_Angeles
+  order: 46
+  lat: 33.9382
+  lon: -118.3866
+  elev: 30
+  site: Los Angeles Intl
+- icao: KSFO
+  name: 旧金山
+  tz: America/Los_Angeles
+  order: 47
+  lat: 37.6196
+  lon: -122.3656
+  elev: 2
+  site: San Francisco Intl
+- icao: KSEA
+  name: 西雅图
+  tz: America/Los_Angeles
+  order: 48
+  lat: 47.4447
+  lon: -122.3144
+  elev: 115
+  site: Seattle-Tacoma Intl

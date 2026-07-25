@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>气象预报追踪 Dashboard</title>
+<style>
+:root{
+  --bg:#f5f7fa;--card:#fff;--text:#1a202c;--muted:#718096;--border:#e2e8f0;
+  --accent:#2b6cb0;--hot:#e53e3e;--warm:#dd6b20;--cool:#3182ce;--ok:#38a169;
+  --hi:#fefcbf;--shadow:0 1px 3px rgba(0,0,0,.08);
+}
+body.dark{
+  --bg:#1a202c;--card:#2d3748;--text:#e2e8f0;--muted:#a0aec0;--border:#4a5568;
+  --accent:#63b3ed;--hi:#4a5568;--shadow:0 1px 3px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+header{position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:var(--shadow)}
+header h1{font-size:18px;white-space:nowrap}
+.stats{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:4px 12px;font-size:12px}
+.stat b{font-size:15px;color:var(--accent)}
+.spacer{flex:1}
+.btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{padding:16px 20px;max-width:1600px;margin:0 auto}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);font-size:13px;white-space:nowrap}
+th{background:var(--bg);color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+table.main th{position:static}
+.modtable th{position:static}
+td.l,th.l{text-align:left}
+tr.cityrow{cursor:pointer}
+tr.cityrow:hover{background:var(--bg)}
+tr.hl td{background:rgba(229,62,62,.08)}
+.temp{font-weight:600}
+.hot{color:var(--hot)}
+.warm{color:var(--warm)}
+.conf{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px}
+.conf.高{background:rgba(56,161,105,.15);color:var(--ok)}
+.conf.中{background:rgba(221,107,32,.15);color:var(--warm)}
+.conf.低{background:rgba(229,62,62,.15);color:var(--hot)}
+.cdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:2px}
+.cdot.高{background:var(--ok)}
+.cdot.中{background:var(--warm)}
+.cdot.低{background:var(--hot)}
+.cdot.none{background:var(--border)}
+.pm{display:inline-block;padding:2px 8px;margin:1px;border-radius:5px;font-size:11px;text-decoration:none;border:1px solid var(--accent);color:var(--accent)}
+.pm:hover{background:var(--accent);color:#fff}
+.pm.verified::after{content:" ✓"}
+.pm.disabled{opacity:.35;pointer-events:none}
+.err-ok{color:var(--ok)}.err-mid{color:var(--warm)}.err-bad{color:var(--hot)}
+#drawer{position:fixed;top:0;right:-720px;width:700px;max-width:95vw;height:100vh;background:var(--card);box-shadow:-4px 0 16px rgba(0,0,0,.2);transition:right .25s;z-index:100;overflow-y:auto;padding:20px}
+#drawer.open{right:0}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:90;display:none}
+#overlay.show{display:block}
+.daycards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.daycard{border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;background:var(--bg)}
+.daycard .dc-temp{font-size:26px;font-weight:700;color:var(--accent);margin:6px 0}
+.daycard .dc-f{font-size:12px;color:var(--muted)}
+.daycard .dc-date{font-size:12px;color:var(--muted)}
+.daycard .dc-label{font-weight:600;font-size:13px}
+h3.sec{margin:18px 0 8px;font-size:14px;border-left:3px solid var(--accent);padding-left:8px}
+.mini{font-size:12px;color:var(--muted)}
+.modtable td,.modtable th{padding:5px 8px;font-size:12px}
+.evo{margin-top:6px}
+.legend{font-size:11px;color:var(--muted);margin-top:4px}
+#search{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:200px}
+.updatetime{font-size:12px;color:var(--muted)}
+.badge-hot{background:var(--hot);color:#fff;border-radius:4px;padding:0 5px;font-size:11px;margin-left:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌡️ 气象预报追踪</h1>
+  <div class="stats" id="globalStats"></div>
+  <div class="spacer"></div>
+  <span class="updatetime" id="updatetime">加载中…</span>
+  <input id="search" placeholder="搜索城市 / ICAO…">
+  <button class="btn" id="unitBtn">°C</button>
+  <button class="btn" id="darkBtn">🌙</button>
+</header>
+<main>
+  <div id="tableWrap"></div>
+</main>
+<div id="overlay" onclick="closeDrawer()"></div>
+<div id="drawer"></div>
+<script>
+let DATA=null, unit='C', sortKey='order', sortAsc=true, filterText='';
+const $=s=>document.querySelector(s);
+const c2f=c=>c==null?null:+(c*9/5+32).toFixed(1);
+const fmtT=c=>c==null?'—':(unit==='C'?c.toFixed(1)+'°':c2f(c).toFixed(1)+'°');
+const fmtTn=c=>c==null?'—':(unit==='C'?c.toFixed(1):c2f(c).toFixed(1));
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+// UTC ISO 时间(含 Z) → 北京时间(UTC+8) 字符串：2026-07-24 17:41:54
+const toBeijing=s=>{
+  if(!s)return '—';
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(!m)return s;
+  const Y=+m[1],Mo=+m[2],D=+m[3],H=+m[4],Min=+m[5],S=m[6]?+m[6]:0;
+  const d=new Date(Date.UTC(Y,Mo-1,D,H,Min,S));
+  d.setUTCHours(d.getUTCHours()+8);
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+};
+const errCls=e=>Math.abs(e)<=1?'err-ok':(Math.abs(e)<=2?'err-mid':'err-bad');
+const heatCls=c=>c>=38?'hot':(c>=33?'warm':'');
+
+async function load(){
+  try{
+    const r=await fetch('data.json?t='+Date.now());
+    DATA=await r.json();
+    render();
+    $('#updatetime').textContent='数据更新: '+toBeijing(DATA.generated_at)+' 北京时间 · 每5分钟自动刷新';
+  }catch(e){
+    $('#updatetime').textContent='数据加载失败: '+e.message;
+  }
+}
+
+function render(){
+  if(!DATA)return;
+  const g=DATA.global;
+  $('#globalStats').innerHTML=
+    `<div class="stat"><b>${g.cities}</b> 城市</div>
+     <div class="stat"><b>${g.models}</b> 模型</div>
+     <div class="stat"><b>${DATA.base_date}</b> 基准日</div>
+     <div class="stat">置信 <span class="cdot 高"></span>高 <span class="cdot 中"></span>中 <span class="cdot 低"></span>低</div>`;
+  let cities=[...DATA.cities];
+  if(filterText){
+    const f=filterText.toLowerCase();
+    cities=cities.filter(c=>c.icao.toLowerCase().includes(f)||c.name.includes(f));
+  }
+  cities.sort((a,b)=>{
+    let va,vb;
+    if(sortKey==='order'){va=a.order;vb=b.order;}
+    else if(sortKey.startsWith('d')){const i=+sortKey[1];va=a.days[i].tmax??-999;vb=b.days[i].tmax??-999;}
+    else if(sortKey==='obs'){va=a.obs[0]?.tmax??-999;vb=b.obs[0]?.tmax??-999;}
+    return sortAsc?va-vb:vb-va;
+  });
+  const dl=DATA.days.map((d,i)=>`<th data-k="d${i}">${['今天','明天','后天'][i]}<br><span class="mini">${d.slice(5)}</span></th>`).join('');
+  let html=`<table class="main"><thead><tr>
+    <th class="l" data-k="order"># 城市</th>${dl}
+    <th>模型</th><th class="l">Polymarket</th>
+    <th data-k="obs">最近实测</th><th>误差</th></tr></thead><tbody>`;
+  for(const c of cities){
+    const d=c.days;
+    const obs=c.obs[0];
+    let obsCell='—',errCell='—';
+    if(obs){
+      obsCell=`<span class="temp">${fmtT(obs.tmax)}</span><br><span class="mini">${obs.date.slice(5)}</span>`;
+      const pd=d.find(x=>x.date===obs.date);
+      if(pd&&pd.tmax!=null){
+        const e=pd.tmax-obs.tmax;
+        errCell=`<span class="${errCls(e)}">${e>0?'+':''}${e.toFixed(1)}°</span>`;
+      }
+    }
+    const pm=d.map((x,i)=>x.pm_url?`<a class="pm ${x.pm_verified?'verified':''}" href="${x.pm_url}" target="_blank" title="${['今天','明天','后天'][i]} ${x.date}">${['D0','D+1','D+2'][i]}</a>`:`<span class="pm disabled">D${i>0?'+'+i:0}</span>`).join('');
+    const anyHot=d.some(x=>x.tmax>=38);
+    html+=`<tr class="cityrow ${anyHot?'hl':''}" data-icao="${c.icao}">
+      <td class="l"><b>${c.order}</b> ${esc(c.name)} <span class="mini">${c.icao}</span>${anyHot?'<span class="badge-hot">高温</span>':''}</td>
+      ${d.map(x=>`<td title="置信度${x.conf||'—'} · ${x.n_models}个模型"><span class="cdot ${x.conf||'none'}"></span><span class="temp ${heatCls(x.tmax)}">${fmtT(x.tmax)}</span><br><span class="mini">${unit==='C'?c2f(x.tmax)??'—':x.tmax??'—'}${unit==='C'?'F':'C'}</span></td>`).join('')}
+      <td><span class="mini">${d[0].n_models}</span></td>
+      <td class="l">${pm}</td>
+      <td>${obsCell}</td><td>${errCell}</td></tr>`;
+  }
+  html+='</tbody></table>';
+  $('#tableWrap').innerHTML=html;
+  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(sortKey===k)sortAsc=!sortAsc;else{sortKey=k;sortAsc=true;}
+    render();
+  });
+  document.querySelectorAll('tr.cityrow').forEach(tr=>tr.onclick=()=>openDrawer(tr.dataset.icao));
+}
+
+function openDrawer(icao){
+  const c=DATA.cities.find(x=>x.icao===icao);
+  if(!c)return;
+  const dayCards=c.days.map((d,i)=>{
+    const pm=d.pm_url?`<a class="pm ${d.pm_verified?'verified':''}" href="${d.pm_url}" target="_blank">Polymarket ${d.date.slice(5)}</a>`:'';
+    return `<div class="daycard">
+      <div class="dc-label">${['今天 D0','明天 D+1','后天 D+2'][i]}</div>
+      <div class="dc-date">${d.date}</div>
+      <div class="dc-temp ${heatCls(d.tmax)}">${fmtT(d.tmax)}</div>
+      <div class="dc-f">${unit==='C'?fmtT(c2f(d.tmax)).replace('°','°F'):fmtT((d.tmax-32)*5/9).replace('°','°C')}</div>
+      <div style="margin:6px 0"><span class="conf ${d.conf||'低'}">置信度 ${d.conf||'—'}</span></div>
+      <div class="mini">融合 ${d.n_models} 个模型（偏差修正后中位数）</div>
+      <div style="margin-top:8px">${pm}</div>
+      ${evoChart(d.evolution,d.date)}
+    </div>`;
+  }).join('');
+  // 全模型预报表
+  const models=Object.keys(c.days[0].models);
+  let modHtml='<table class="modtable"><thead><tr><th class="l">模型</th>'+DATA.days.map((d,i)=>`<th>${['D0','D+1','D+2'][i]}</th>`).join('')+'<th>30天bias</th></tr></thead><tbody>';
+  const biasMap={};c.bias.forEach(b=>biasMap[b.model]=b);
+  for(const m of models){
+    const b=biasMap[m];
+    modHtml+=`<tr><td class="l">${esc(m)}</td>${c.days.map(d=>{
+      const v=d.models[m];
+      return `<td>${v==null?'<span class="mini">N/A</span>':fmtT(v)}</td>`;
+    }).join('')}<td>${b?`<span class="${errCls(b.bias)}">${b.bias>0?'+':''}${b.bias}°</span> <span class="mini">n=${b.n}</span>`:'—'}</td></tr>`;
+  }
+  modHtml+='</tbody></table>';
+  // 实测历史
+  let obsHtml='<table class="modtable"><thead><tr><th class="l">日期</th><th>实测</th><th>研判</th><th>误差</th></tr></thead><tbody>';
+  for(const o of c.obs){
+    const pd=c.days.find(x=>x.date===o.date);
+    const e=pd&&pd.tmax!=null?pd.tmax-o.tmax:null;
+    obsHtml+=`<tr><td class="l">${o.date}</td><td>${fmtT(o.tmax)}</td><td>${pd?fmtT(pd.tmax):'—'}</td><td>${e!=null?`<span class="${errCls(e)}">${e>0?'+':''}${e.toFixed(1)}°</span>`:'—'}</td></tr>`;
+  }
+  obsHtml+='</tbody></table>';
+  // 偏差修正
+  let biasHtml='<table class="modtable"><thead><tr><th class="l">模型</th><th>Bias</th><th>MAE</th><th>RMSE</th><th>n</th></tr></thead><tbody>';
+  for(const b of c.bias){
+    biasHtml+=`<tr><td class="l">${esc(b.model)}</td><td class="${errCls(b.bias)}">${b.bias>0?'+':''}${b.bias}°</td><td>${b.mae}°</td><td>${b.rmse}°</td><td>${b.n}</td></tr>`;
+  }
+  biasHtml+=c.bias.length?'':'<tr><td colspan="5" class="mini">数据积累中，暂无统计</td></tr>';
+  biasHtml+='</tbody></table>';
+
+  $('#drawer').innerHTML=`
+    <button class="btn" style="float:right" onclick="closeDrawer()">✕ 关闭</button>
+    <h2>${esc(c.name)} <span class="mini">${c.icao} · ${c.tz}</span></h2>
+    <div class="daycards">${dayCards}</div>
+    <h3 class="sec">全模型预报（最新快照）</h3>${modHtml}
+    <h3 class="sec">实测与误差（近14天）</h3>${obsHtml}
+    <h3 class="sec">偏差修正统计（30天）</h3>${biasHtml}
+    <p class="mini" style="margin-top:14px">修正方式：fc_corrected = fc − bias30；综合研判 = 全模型修正后中位数；置信度按模型间离散度划分（≤1°C高 / ≤2.5°C中 / 否则低）</p>`;
+  $('#drawer').classList.add('open');
+  $('#overlay').classList.add('show');
+}
+function closeDrawer(){$('#drawer').classList.remove('open');$('#overlay').classList.remove('show');}
+
+function evoChart(evo,dateStr){
+  if(!evo||evo.length<2)return '<div class="legend">快照演化数据积累中</div>';
+  const W=180,H=56,P=6;
+  const vals=evo.map(e=>e.median);
+  const mn=Math.min(...vals)-0.5,mx=Math.max(...vals)+0.5,rg=mx-mn||1;
+  const pts=evo.map((e,i)=>{
+    const x=P+i*(W-2*P)/(evo.length-1);
+    const y=H-P-(e.median-mn)/rg*(H-2*P);
+    return [x,y];
+  });
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const dots=pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="var(--accent)"><title>${evo[i].slot}: ${evo[i].median}°C (${evo[i].n}模型)</title></circle>`).join('');
+  return `<div class="evo"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>${dots}
+    <text x="${P}" y="${H-1}" font-size="8" fill="var(--muted)">${toBeijing(evo[0].slot).slice(5,16)}</text>
+    <text x="${W-P}" y="${H-1}" font-size="8" fill="var(--muted)" text-anchor="end">${toBeijing(evo[evo.length-1].slot).slice(5,16)}</text>
+  </svg><div class="legend">快照演化 ${mn.toFixed(1)}~${mx.toFixed(1)}°C</div></div>`;
+}
+
+$('#search').oninput=e=>{filterText=e.target.value.trim();render();};
+$('#unitBtn').onclick=()=>{unit=unit==='C'?'F':'C';$('#unitBtn').textContent='°'+unit;render();};
+$('#darkBtn').onclick=()=>{document.body.classList.toggle('dark');$('#darkBtn').textContent=document.body.classList.contains('dark')?'☀️':'🌙';};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+load();
+setInterval(load,300000);
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+# 气象模型配置
+# scope: global=48城通用 / europe=仅欧洲(中欧) / japan=仅日本周边 / scrape=网页抓取
+# id 为 Open-Meteo models 参数值；label 为展示名
+models:
+  - id: ecmwf_ifs025
+    label: ECMWF IFS
+    scope: global
+    source: open-meteo
+  - id: ecmwf_aifs025
+    label: ECMWF AIFS(AI)
+    scope: global
+    source: open-meteo
+  - id: gfs_seamless
+    label: GFS
+    scope: global
+    source: open-meteo
+  - id: icon_seamless
+    label: ICON
+    scope: global
+    source: open-meteo
+  - id: icon_eu
+    label: ICON-EU
+    scope: europe
+    source: open-meteo
+  - id: chmi_aladin_seamless
+    label: ALADIN
+    scope: europe
+    source: open-meteo
+  - id: jma_msm
+    label: JMA MSM
+    scope: japan
+    source: open-meteo
+  - id: jma_gsm
+    label: JMA GSM
+    scope: global
+    source: open-meteo
+  - id: gem_seamless
+    label: GEM
+    scope: global
+    source: open-meteo
+  - id: ukmo_seamless
+    label: UKMO
+    scope: global
+    source: open-meteo
+  - id: kma_seamless
+    label: KMA
+    scope: global
+    source: open-meteo
+  - id: meteofrance_seamless
+    label: ARPEGE/AROME
+    scope: global
+    source: open-meteo
+  - id: meteoblue
+    label: meteoblue(网页)
+    scope: scrape
+    source: meteoblue
+
+# 区域模型候选城市（非适用城市采集器会依据 API error 自动记 N/A，此处仅作请求优化）
+regions:
+  europe: [LTAC, EFHK, LTFM, UUWW, LLBG, EHAM, EPWA, LEMD, LIMC, EDDM, LFPB, EGLC]
+  japan: [RJTT, RKSI, RKPK]

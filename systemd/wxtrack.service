@@ -1,0 +1,18 @@
+[Unit]
+Description=wxtrack hourly weather collector (多模型气温预报追踪)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__PKG__
+# 每小时唤醒一次：预报采集 -> 研判 -> 看板推送；每3轮补实测；每轮验证；每6轮重算偏差
+ExecStart=__PY__ __PKG__/scripts/loop_collector.py --interval 3600
+Restart=always
+RestartSec=30
+User=__USER__
+StandardOutput=append:__PKG__/logs/loop_stdout.log
+StandardError=append:__PKG__/logs/loop_stdout.log
+
+[Install]
+WantedBy=multi-user.target
