@@ -14,9 +14,12 @@ echo "[pipeline] mode=$MODE start $(date -u +%FT%TZ)"
 
 case "$MODE" in
   forecast)
-    python3 scripts/collect_forecast.py 2>&1 | tail -3
+    # 本地部署适配(macOS)：全量 meteoblue 页面抓取(lxml)易 OOM，守护进程改用 --skip-meteoblue，
+    # 仅保留 Open-Meteo 12 模型。如需 meteoblue 第13模型，可在资源充足的 Linux 机器移除该参数。
+    python3 scripts/collect_forecast.py --skip-meteoblue 2>&1 | tail -3
     python3 scripts/predict.py 2>&1 | tail -2
     python3 scripts/gen_dashboard.py 2>&1 | tail -1
+    python3 scripts/collect_precip.py --patch 2>&1 | tail -1
     bash scripts/push_dashboard.sh 2>&1 | tail -1
     ;;
   obs)
@@ -28,6 +31,7 @@ case "$MODE" in
     python3 scripts/predict.py --backfill 2>&1 | tail -2
     python3 scripts/gen_vault.py 2>&1 | tail -1
     python3 scripts/gen_dashboard.py 2>&1 | tail -1
+    python3 scripts/collect_precip.py --patch 2>&1 | tail -1
     bash scripts/push_dashboard.sh 2>&1 | tail -1
     ;;
   verify)
