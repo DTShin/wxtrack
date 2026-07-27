@@ -15,7 +15,7 @@ if [ ! -f "$TOKEN_FILE" ]; then
 fi
 TOKEN=$(cat "$TOKEN_FILE")
 REPO="${WX_DASHBOARD_REPO:-DTShin/weather-dashboard}"
-REMOTE="https://oauth2:${TOKEN}@github.com/${REPO}.git"
+REMOTE="https://x-access-token:${TOKEN}@github.com/${REPO}.git"
 
 cd "$DASH"
 # dashboard 目录需是 git 仓库（setup.sh 已 init；若无则补建）
@@ -34,8 +34,13 @@ fi
 TS=$(date -u +"%Y-%m-%dT%H:%MZ")
 git -c user.name="wxtrack-bot" -c user.email="bot@dtshin.xyz" commit -m "data: ${TS}"
 if ! git push origin main > /tmp/push_dashboard_out.log 2>&1; then
-    echo "ERROR: git push 失败" >&2
-    cat /tmp/push_dashboard_out.log >&2
+    echo "WARN: git push 失败，尝试改用 GitHub API 推送" >&2
+    grep -v "remote:" /tmp/push_dashboard_out.log | tail -3 >&2
+    if python3 "$SCRIPT_DIR/push_github_api.py"; then
+        echo "已通过 API 推送: ${TS}"
+        exit 0
+    fi
+    echo "ERROR: API 推送也失败" >&2
     exit 1
 fi
 grep -v "remote:" /tmp/push_dashboard_out.log | tail -2
