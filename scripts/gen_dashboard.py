@@ -4,6 +4,7 @@
 """
 import argparse
 import json
+import math
 import statistics
 import sys
 from datetime import date, datetime, timedelta
@@ -36,7 +37,7 @@ POLYMARKET = {
     "EHAM": ("amsterdam", False), "FACT": ("cape-town", False), "EPWA": ("warsaw", False),
     "LEMD": ("madrid", False), "EDDM": ("munich", False), "LFPB": ("paris", False),
     "SAEZ": ("buenos-aires", False), "SBGR": ("sao-paulo", False), "CYYZ": ("toronto", False),
-    "KATL": ("atlanta", False), "MPMG": ("panama-city", False), "KDAL": ("dallas", False),
+    "KATL": ("atlanta", True), "MPMG": ("panama-city", False), "KDAL": ("dallas", False),
     "KHOU": ("houston", False), "KAUS": ("austin", False), "KBKF": ("denver", False),
     "MMMX": ("mexico-city", False), "KSFO": ("san-francisco", False), "KSEA": ("seattle", False),
 }
@@ -51,6 +52,43 @@ MODEL_LABEL = {
     "jma_msm": "MSM", "jma_gsm": "GSM", "gem_seamless": "GEM", "ukmo_seamless": "UKMO",
     "kma_seamless": "KMA", "meteofrance_seamless": "ARPEGE", "meteoblue": "meteoblue",
 }
+
+# 美国城市（ICAO K 前缀）的 Polymarket 市场按 °F 整数分档，其余按 °C
+US_SET = {
+    "KMIA", "KLGA", "KATL", "KORD", "KDAL", "KHOU",
+    "KAUS", "KBKF", "KLAX", "KSFO", "KSEA",
+}
+
+
+def city_unit(icao):
+    return "°F" if icao in US_SET else "°C"
+
+
+def to_disp(v_c, unit):
+    """把 °C 值换算成该城市分档单位的整数（研判推荐展示用）。
+
+    Polymarket 温度档按「实际最高温落在哪个整数区间」结算 = floor(actual high)：
+    实测 31.9°C → 归属 31 档，买 32 错。故推介整数必须用 floor（向下取整），
+    不能用 round（四舍五入会让 frac>=0.5 的预测多 +1，例如 31.8→32，而实际 31.9 仍属 31 档）。
+    等价于「取整到不大于预测值的整数」，该整数即预测值所在档位 = 期望结算档。
+    """
+    if v_c is None:
+        return None
+    f = v_c * 9 / 5 + 32 if unit == "°F" else v_c
+    return int(math.floor(f))
+
+
+def edge_distance(v_c, unit):
+    """预测值（按展示单位）距最近整数档边界的距离（floor 规则下边界在整数处）。
+    <=0.2 即视为边界高风险——此时推介整数极易因微小误差翻档：
+      如 f=31.9→推31，实际≥32.0(+0.1)即翻到32档；
+      如 f=31.1→推31，实际<31.0(-0.1)即翻到30档。
+    """
+    if v_c is None:
+        return None
+    f = v_c * 9 / 5 + 32 if unit == "°F" else v_c
+    g = f - math.floor(f)
+    return min(g, 1 - g)
 
 
 def pm_url(icao, dstr):
@@ -152,6 +190,7 @@ def main():
     cities_out = []
     for c in load_cities():
         icao = c["icao"]
+        unit = city_unit(icao)
         biases = bias_map(conn, icao)
         # 三天预测
         day_preds = []
@@ -160,7 +199,15 @@ def main():
             val, conf, nmod = predict_value(fc, biases, i)
             url, verified = pm_url(icao, dstr)
             day_preds.append({
-                "date": dstr, "lead": i, "tmax": val, "conf": conf, "n_models": nmod,
+                "date": dstr, "lead": i,
+                "tmax": to_disp(val, unit),
+                "tmax_disp": to_disp(val, unit),
+                # 保留原始预测小数，供边界风险判断与前端展示
+                "tmax_raw": round(val, 1) if val is not None else None,
+                "edge_risk": (edge_distance(val, unit) is not None
+                              and edge_distance(val, unit) < 0.2),
+                "edge_dist": round(edge_distance(val, unit), 2) if edge_distance(val, unit) is not None else None,
+                "conf": conf, "n_models": nmod,
                 "models": {MODEL_LABEL.get(m, m): round(v, 1) for m, v in
                            sorted(fc.items(), key=lambda x: MODEL_ORDER.index(x[0]) if x[0] in MODEL_ORDER else 99)},
                 "pm_url": url, "pm_verified": verified,
@@ -171,7 +218,10 @@ def main():
         obs_rows = conn.execute(
             "SELECT local_date, tmax_final, src_final FROM obs_tmax"
             " WHERE city=? ORDER BY local_date DESC LIMIT 14", (icao,)).fetchall()
-        obs_list = [{"date": r["local_date"], "tmax": r["tmax_final"], "src": r["src_final"]}
+        obs_list = [{"date": r["local_date"],
+                     "tmax": r["tmax_final"],
+                     "tmax_disp": to_disp(r["tmax_final"], unit),
+                     "src": r["src_final"]}
                     for r in obs_rows]
         # 偏差修正摘要（D0 各模型）
         bias_summary = []
@@ -183,6 +233,7 @@ def main():
                     "mae": b["mae"], "rmse": b["rmse"], "n": b["n"]})
         cities_out.append({
             "icao": icao, "name": c["name"], "tz": c["tz"], "order": c["order"],
+            "unit": unit, "lat": c.get("lat"), "lon": c.get("lon"),
             "days": day_preds, "obs": obs_list, "bias": bias_summary,
         })
 
@@ -191,11 +242,12 @@ def main():
     for c in cities_out:
         if c["obs"] and c["days"][0]["tmax"] is not None:
             latest_obs = c["obs"][0]
-            # 找当天预测对应实测
-            for d in c["days"]:
-                if d["date"] == latest_obs["date"] and d["tmax"] is not None:
-                    mae_global += abs(d["tmax"] - latest_obs["tmax"])
-                    cnt += 1
+            # 找当天预测对应实测（按整数档比较：floor(rec) vs floor(actual)）
+            if latest_obs["tmax"] is not None:
+                for d in c["days"]:
+                    if d["date"] == latest_obs["date"] and d["tmax"] is not None:
+                        mae_global += abs(d["tmax"] - int(math.floor(latest_obs["tmax"])))
+                        cnt += 1
     global_stats = {
         "cities": len(cities_out),
         "models": len(MODEL_ORDER),
