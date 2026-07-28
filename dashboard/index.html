@@ -122,21 +122,75 @@ const c2f=c=>c==null?null:+(c*9/5+32).toFixed(1);
 // 单位模式：P=按城市 Polymarket 档位（美国°F/其余°C）；C=强制°C；F=强制°F
 const dispUnit=cityUnit=>unitMode==='P'?cityUnit:(unitMode==='C'?'C':'F');
 // 展示整数温度：vC=°C 原始值；dispInt=该城市单位下已取整值（Polymarket 模式优先用，保证整数）
+// vC: 原始 °C 值（后端 tmax_raw）；dispInt: 该城市展示单位下已 floor 取整的整数（Polymarket 档）
+// 约定：前端所有温度都以「原始 °C」为唯一真值，再按当前单位模式换算；禁止对已是展示单位的 tmax 二次换算。
 function fmtT(vC, dispInt, cityUnit){
   if(vC==null&&dispInt==null)return '—';
-  const u=dispUnit(cityUnit);
-  if(u==='F'){
-    const base=vC!=null?vC:(dispInt!=null?(cityUnit==='F'?dispInt:(dispInt-32)*5/9):null);
-    return Math.round(base*9/5+32)+'°F';
-  }
-  const base=vC!=null?vC:(dispInt!=null?(cityUnit==='C'?dispInt:dispInt*9/5+32):null);
-  return Math.round(base)+'°C';
+  const u=dispUnit(cityUnit); // 始终为 '°C' 或 '°F'
+  // Polymarket 模式（按城市）且城市原生单位即展示单位 → 直接用后端预计算的 floor 整数档，保证与推介档一致
+  if(u===cityUnit && dispInt!=null) return dispInt+u;
+  let v=vC;
+  if(v==null) v=(u==='°F')?(dispInt-32)*5/9:dispInt;
+  if(v==null)return '—';
+  const num=(u==='°F'?Math.round(v*9/5+32):Math.round(v));
+  return num+u;
 }
-// 副单位（与展示单位相反）
+// 副单位（与展示单位相反）：vC 为原始 °C
 function altUnit(vC, cityUnit){
   if(vC==null)return '—';
   const u=dispUnit(cityUnit);
-  return u==='F'?Math.round(vC)+'°C':Math.round(vC*9/5+32)+'°F';
+  return u==='°F'?Math.round(vC)+'°C':Math.round(vC*9/5+32)+'°F';
+}
+
+// ===== 动态偏差修正：按"距城市当日最高温的剩余小时"实时换算推介研判 =====
+// 思路：每个城市有当日最高温出现的本地小时(tmax_hour)，剩余小时 → 分数提前期 lead=小时/24；
+// 逐模型用其 (lead_days→bias) 曲线插值出当前 lead 的偏差，修正后取中位数即为当下推介值。
+// 浏览器用 viewer 当前时钟实时计算，随"当下"变化 → 不同时间跨度给不同修正值。
+function median(a){if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);const n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;}
+function mean(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}
+function getTzOffset(ms,tz){
+  const dtf=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const p={};dtf.formatToParts(new Date(ms)).forEach(x=>p[x.type]=x.value);
+  let h=p.hour==='24'?'00':p.hour;
+  const asUTC=Date.UTC(+p.year,+p.month-1,+p.day,+h,+p.minute,+p.second);
+  return (asUTC-ms)/60000;
+}
+function wallToEpoch(y,mo,d,h,mi,tz){
+  const guess=Date.UTC(y,mo-1,d,h,mi);
+  const off=getTzOffset(guess,tz);
+  const t=guess-off*60000;
+  const off2=getTzOffset(t,tz);
+  return guess-off2*60000;
+}
+function remainingHoursToMax(tz,tmaxHour,targetISO,nowMs){
+  const [Y,M,D]=targetISO.split('-').map(Number);
+  const tgt=wallToEpoch(Y,M,D,tmaxHour,0,tz);
+  const rem=(tgt-nowMs)/3600000;
+  return rem>0?rem:0;
+}
+function interpBias(biasObj,leadFrac){
+  if(!biasObj)return 0;
+  const leads=Object.keys(biasObj).map(Number).filter(k=>!isNaN(k)).sort((a,b)=>a-b);
+  if(!leads.length)return 0;
+  if(leadFrac<=leads[0])return +biasObj[leads[0]];
+  if(leadFrac>=leads[leads.length-1])return +biasObj[leads[leads.length-1]];
+  for(let i=0;i<leads.length-1;i++){
+    const a=leads[i],b=leads[i+1];
+    if(leadFrac>=a&&leadFrac<=b){const t=(leadFrac-a)/(b-a);return +biasObj[a]*(1-t)+biasObj[b]*t;}
+  }
+  return 0;
+}
+function recommendedC(c,day){
+  const nowMs=Date.now();
+  const th=c.tmax_hour||15;
+  const remH=remainingHoursToMax(c.tz,th,day.date,nowMs);
+  const leadFrac=remH/24;
+  const labels=Object.keys(day.models||{});
+  const corr=labels.map(lbl=>{const raw=day.models[lbl];if(raw==null)return null;const b=interpBias(day.bias_by_lead?day.bias_by_lead[lbl]:null,leadFrac);return raw-b;}).filter(v=>v!=null);
+  if(!corr.length)return {c:null,leadFrac,remH,bias:0};
+  const m=median(corr);
+  const bias=mean(labels.map(lbl=>interpBias(day.bias_by_lead?day.bias_by_lead[lbl]:null,leadFrac)));
+  return {c:m,leadFrac,remH,bias};
 }
 // 误差（按当前展示单位）
 function errDisp(eC, cityUnit){
@@ -229,7 +283,7 @@ function render(){
   cities.sort((a,b)=>{
     let va,vb;
     if(sortKey==='order'){va=a.order;vb=b.order;}
-    else if(sortKey.startsWith('d')){const i=+sortKey[1];va=a.days[i].tmax??-999;vb=b.days[i].tmax??-999;}
+    else if(sortKey.startsWith('d')){const i=+sortKey[1];va=a.days[i].tmax_raw??-999;vb=b.days[i].tmax_raw??-999;}
     else if(sortKey==='obs'){va=a.obs[0]?.tmax??-999;vb=b.obs[0]?.tmax??-999;}
     return sortAsc?va-vb:vb-va;
   });
@@ -241,29 +295,33 @@ function render(){
     <th data-k="obs">最近实测</th><th>误差</th></tr></thead><tbody>`;
   for(const c of cities){
     const d=c.days;
+    c._recs=DAY_ORDER.map(di=>recommendedC(c,c.days[di])); // 当下动态修正结果（随 viewer 时钟变化）
     const obs=c.obs[0];
     let obsCell='—',errCell='—';
     if(obs){
       obsCell=`<span class="temp">${fmtT(obs.tmax, obs.tmax_disp, c.unit)}</span><br><span class="mini">${obs.date.slice(5)}</span>`;
-      const pd=d.find(x=>x.date===obs.date);
-      if(pd&&pd.tmax!=null){
-        const e=errDisp(pd.tmax-obs.tmax, c.unit);
+      const pdi=d.findIndex(x=>x.date===obs.date);
+      const prec=pdi>=0?c._recs[pdi]:null;
+      if(prec&&prec.c!=null){
+        const e=errDisp(prec.c-obs.tmax, c.unit);
         errCell=`<span class="${errCls(e)}">${e>0?'+':''}${e.toFixed(0)}°</span>`;
       }
     }
     const pm=DAY_ORDER.map((di,k)=>{const x=c.days[di];return x.pm_url?`<a class="pm ${x.pm_verified?'verified':''}" href="${x.pm_url}" target="_blank" title="${DAY_LABELS[k]} ${x.date}">D${di}</a>`:`<span class="pm disabled">D${di}</span>`;}).join('');
-    const anyHot=d.some(x=>x.tmax>=38);
+    const anyHot=d.some((x,di)=>c._recs[di]&&c._recs[di].c>=38);
     html+=`<tr class="cityrow ${anyHot?'hl':''}" data-icao="${c.icao}">
       <td class="l"><b>${c.order}</b> ${esc(c.name)} <span class="mini">${c.icao}</span>${anyHot?'<span class="badge-hot">高温</span>':''}</td>
-      ${DAY_ORDER.map(di=>{const x=c.days[di];return `<td title="置信度${x.conf||'—'} · ${x.n_models}个模型"><span class="cdot ${x.conf||'none'}"></span><span class="temp ${heatCls(x.tmax)}">${fmtT(x.tmax, x.tmax_disp, c.unit)}</span>${rainHtml(x)}${x.edge_risk?'<span class="edge" title="预测贴近整数档边界，floor 取整规则下推介整数易翻档">⚠</span>':''}<br><span class="mini">${altUnit(x.tmax, c.unit)}</span></td>`;}).join('')}
-      <td class="pm-live-cell">${DAY_ORDER.map((di,k)=>{const x=c.days[di];return x.pm_url?`<div class="pmday" data-slug="${slugOf(x.pm_url)}" data-tmax="${x.tmax??''}" title="${DAY_LABELS[k]} ${x.date}"><span class="dl">D${di}</span><span class="pm-live"><span class="mini">加载中…</span></span></div>`:`<div class="pmday disabled"><span class="dl">D${di}</span><span class="pm-live"><span class="mini">无市场</span></span></div>`;}).join('')}</td>
+      ${DAY_ORDER.map(di=>{const x=c.days[di];const rec=c._recs[di];const remH=rec?rec.remH:0;const db=rec?rec.bias:0;return `<td title="置信度${x.conf||'—'} · ${x.n_models}个模型 · 距最高温剩余 ${remH.toFixed(1)}h · 动态修正 ${db>=0?'+':''}${db.toFixed(1)}°C"><span class="cdot ${x.conf||'none'}"></span><span class="temp ${heatCls(rec?rec.c:null)}">${fmtT(rec?rec.c:null, rec&&rec.c!=null?Math.floor(rec.c):null, c.unit)}</span>${rainHtml(x)}${x.edge_risk?'<span class="edge" title="预测贴近整数档边界，floor 取整规则下推介整数易翻档">⚠</span>':''}<br><span class="mini">${rec?altUnit(rec.c, c.unit):'—'}</span></td>`;}).join('')}
+      <td class="pm-live-cell">${DAY_ORDER.map((di,k)=>{const x=c.days[di];const rec=c._recs[di];return x.pm_url?`<div class="pmday" data-slug="${slugOf(x.pm_url)}" data-tmax="${rec&&rec.c!=null?rec.c:''}" title="${DAY_LABELS[k]} ${x.date}"><span class="dl">D${di}</span><span class="pm-live"><span class="mini">加载中…</span></span></div>`:`<div class="pmday disabled"><span class="dl">D${di}</span><span class="pm-live"><span class="mini">无市场</span></span></div>`;}).join('')}</td>
       <td><span class="mini">${c.days[DAY_ORDER[0]].n_models}</span></td>
       <td class="l">${pm}</td>
       <td>${extLinks(c)}</td>
       <td>${obsCell}</td><td>${errCell}</td></tr>`;
   }
   html+='</tbody></table><p class="mini" style="margin-top:8px">📡 Polymarket 实时价格由 <b>GitHub Actions 云端每 15 分钟抓取</b>并生成同源 <code>polymarket_prices.json</code>，浏览器每 60 秒拉取静态 JSON 显示（不依赖本机网络）；云端缺失时浏览器直连兜底，仍失败则显示 ⚠。</p>';
+  html+='<p class="mini" style="margin-top:4px">⏱ <b>动态偏差修正</b>：推介研判最高气温按"当下距城市当日最高温的剩余小时"实时换算——剩余时间越短、修正越贴近实测；不同时间跨度给不同修正值；页面每 60 秒按 viewer 时钟重算。</p>';
   $('#tableWrap').innerHTML=html;
+  paintCachedPM(); // 用已加载的 Polymarket 缓存即时回填，避免整表重渲染时 PM 单元格闪现"加载中"
   document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k;
     if(sortKey===k)sortAsc=!sortAsc;else{sortKey=k;sortAsc=true;}
@@ -277,12 +335,13 @@ function openDrawer(icao){
   if(!c)return;
   const dayCards=DAY_ORDER.map((di,k)=>{
     const d=c.days[di];
+    const rec=c._recs[di];
     const pm=d.pm_url?`<a class="pm ${d.pm_verified?'verified':''}" href="${d.pm_url}" target="_blank">Polymarket ${d.date.slice(5)}</a>`:'';
     return `<div class="daycard">
       <div class="dc-label">${DAY_LABELS[k]} · D${di}</div>
       <div class="dc-date">${d.date}</div>
-      <div class="dc-temp ${heatCls(d.tmax)}">${fmtT(d.tmax, d.tmax_disp, c.unit)} ${rainHtml(d)}${d.edge_risk?'<span class="edge" title="预测贴近整数档边界，floor 取整规则下推介整数易翻档">⚠</span>':''}</div>
-      <div class="dc-f">${altUnit(d.tmax, c.unit)}</div>
+      <div class="dc-temp ${heatCls(rec?rec.c:null)}">${fmtT(rec?rec.c:null, rec&&rec.c!=null?Math.floor(rec.c):null, c.unit)} ${rainHtml(d)}${d.edge_risk?'<span class="edge" title="预测贴近整数档边界，floor 取整规则下推介整数易翻档">⚠</span>':''}</div>
+      <div class="dc-f">${rec?altUnit(rec.c, c.unit):'—'}</div>
       <div style="margin:6px 0"><span class="conf ${d.conf||'低'}">置信度 ${d.conf||'—'}</span></div>
       <div class="mini">融合 ${d.n_models} 个模型（偏差修正后中位数）</div>
       <div style="margin-top:8px">${pm}</div>
@@ -296,18 +355,22 @@ function openDrawer(icao){
   const biasMap={};c.bias.forEach(b=>biasMap[b.model]=b);
   for(const m of models){
     const b=biasMap[m];
-    modHtml+=`<tr><td class="l">${esc(m)}</td>${DAY_ORDER.map(di=>{const d=c.days[di];
-      const v=d.models[m];
-      return `<td>${v==null?'<span class="mini">N/A</span>':fmtT(v, null, c.unit)}</td>`;
+    modHtml+=`<tr><td class="l">${esc(m)}</td>${DAY_ORDER.map(di=>{const d=c.days[di];const rec=c._recs[di];
+      const raw=d.models[m];
+      if(raw==null)return '<td><span class="mini">N/A</span></td>';
+      const bias=(d.bias_by_lead&&d.bias_by_lead[m])?interpBias(d.bias_by_lead[m], rec.leadFrac):0;
+      const corr=raw-bias;
+      return `<td title="原始 ${raw}°C · 动态修正 ${bias>=0?'+':''}${bias.toFixed(1)}°C（距最高温剩余 ${rec.remH.toFixed(1)}h）">${fmtT(corr, null, c.unit)}<br><span class="mini">raw ${raw}${bias?` · ${bias>=0?'+':''}${bias.toFixed(1)}`:''}</span></td>`;
     }).join('')}<td>${b?`<span class="${errCls(b.bias)}">${b.bias>0?'+':''}${b.bias}°</span> <span class="mini">n=${b.n}</span>`:'—'}</td></tr>`;
   }
   modHtml+='</tbody></table>';
   // 实测历史
   let obsHtml='<table class="modtable"><thead><tr><th class="l">日期</th><th>实测</th><th>研判</th><th>误差</th></tr></thead><tbody>';
   for(const o of c.obs){
-    const pd=c.days.find(x=>x.date===o.date);
-    const e=pd&&pd.tmax!=null?pd.tmax-o.tmax:null;
-    obsHtml+=`<tr><td class="l">${o.date}</td><td>${fmtT(o.tmax, o.tmax_disp, c.unit)}</td><td>${pd?fmtT(pd.tmax, pd.tmax_disp, c.unit):'—'}</td><td>${e!=null?`<span class="${errCls(errDisp(e,c.unit))}">${errDisp(e,c.unit)>0?'+':''}${errDisp(e,c.unit).toFixed(0)}°</span>`:'—'}</td></tr>`;
+    const pdi=c.days.findIndex(x=>x.date===o.date);
+    const rec=pdi>=0?c._recs[pdi]:null;
+    const e=rec&&rec.c!=null?rec.c-o.tmax:null;
+    obsHtml+=`<tr><td class="l">${o.date}</td><td>${fmtT(o.tmax, o.tmax_disp, c.unit)}</td><td>${rec?fmtT(rec.c, rec.c!=null?Math.floor(rec.c):null, c.unit):'—'}</td><td>${e!=null?`<span class="${errCls(errDisp(e,c.unit))}">${errDisp(e,c.unit)>0?'+':''}${errDisp(e,c.unit).toFixed(0)}°</span>`:'—'}</td></tr>`;
   }
   obsHtml+='</tbody></table>';
   // 偏差修正
@@ -328,7 +391,7 @@ function openDrawer(icao){
     <p class="mini" style="margin-top:14px">修正方式：fc_corrected = fc − bias30；综合研判 = 全模型修正后中位数；置信度按模型间离散度划分（≤1°C高 / ≤2.5°C中 / 否则低）</p>`;
   $('#drawer').classList.add('open');
   $('#overlay').classList.add('show');
-  DAY_ORDER.forEach(di=>{const d=c.days[di];refreshDrawerPM(c.icao,di,d.pm_url,d.tmax);});
+  DAY_ORDER.forEach(di=>{const d=c.days[di];refreshDrawerPM(c.icao,di,d.pm_url,c._recs[di].c);});
 }
 function closeDrawer(){$('#drawer').classList.remove('open');$('#overlay').classList.remove('show');}
 
@@ -457,6 +520,15 @@ async function loadPM(){
     if(r.ok){PM=await r.json();buildPmIndex();}
   }catch(e){PM={};}
 }
+// 用已加载的 Polymarket 缓存即时回填所有 pmday 单元格（供整表重渲染后同步调用，避免闪现"加载中"）
+function paintCachedPM(){
+  if(!PM_BY_SLUG)return;
+  document.querySelectorAll('.pmday').forEach(c=>{
+    const slug=c.dataset.slug; if(!slug)return;
+    const e=PM_BY_SLUG[slug];
+    if(e&&e.best_bin)paintJSONCell(c,e,parseFloat(c.dataset.tmax));
+  });
+}
 async function refreshPolymarket(){
   await loadPM();
   const cells=[...document.querySelectorAll('.pmday')].filter(c=>c.dataset.slug);
@@ -507,6 +579,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
 load();
 setInterval(load,300000);
 setInterval(refreshPolymarket,60000);
+setInterval(()=>{ if(DATA) render(); }, 60000); // 动态偏差修正：每 60 秒按 viewer 时钟重算推介值
 </script>
 </body>
 </html>
